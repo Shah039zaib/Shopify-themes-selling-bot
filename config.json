@@ -1,0 +1,40 @@
+{
+  "business": {
+    "name": "Mega Agency",
+    "tagline": "Premium Shopify Themes Store",
+    "adminNumber": "923XXXXXXXXX",
+    "currency": "PKR",
+    "price": 999
+  },
+  "payment": {
+    "easypaisa": {
+      "number": "03XX-XXXXXXX",
+      "name": "Tumhara Naam"
+    },
+    "jazzcash": {
+      "number": "03XX-XXXXXXX",
+      "name": "Tumhara Naam"
+    },
+    "bank": {
+      "bankName": "Bank Al Habib / HBL",
+      "accountNumber": "XXXXXXXXXXXXXXX",
+      "accountName": "Tumhara Naam",
+      "iban": "PK00XXXX0000000000000000"
+    }
+  },
+  "service": {
+    "totalThemes": 100,
+    "deliveryTime": "Within 1 hour after payment approval",
+    "description": "100+ Premium Shopify Themes Collection",
+    "features": [
+      "100+ Premium Themes",
+      "All Niches Covered",
+      "Fashion, Electronics, Food & More",
+      "Regular Updates",
+      "24/7 Support",
+      "Installation Guide Included",
+      "Mobile Optimized Themes",
+      "Fast Loading Speed"
+    ]
+  }
+}
