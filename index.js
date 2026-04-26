@@ -483,4 +483,137 @@ async function handleMessage(sock, message) {
                 const aiReply = await getAISalesResponse(
                     '[Customer ne ek image bheja hai bina order ke]',
                     senderId,
- 
+                    senderName
+                );
+                await sock.sendMessage(senderId, { text: aiReply.message });
+            }
+            return;
+        }
+
+        const userMessage =
+            message.message?.conversation ||
+            message.message?.extendedTextMessage?.text || '';
+
+        if (!userMessage.trim()) return;
+
+        console.log(`📩 ${senderName}: ${userMessage}`);
+
+        // Typing indicator
+        await sock.sendPresenceUpdate('composing', senderId);
+
+        // AI Sales Response
+        const aiReply = await getAISalesResponse(userMessage, senderId, senderName);
+
+        await sock.sendPresenceUpdate('paused', senderId);
+
+        // Order banao agar AI ne ORDER_READY diya
+        if (aiReply.shouldOrder) {
+            orderCounter++;
+            const orderId = orderCounter;
+            orders[senderId] = {
+                orderId,
+                customerJid: senderId,
+                customerNumber: senderId.replace('@s.whatsapp.net', ''),
+                customerName: senderName,
+                status: 'pending',
+                hasScreenshot: false,
+                timestamp: Date.now()
+            };
+            saveOrders();
+
+            if (aiReply.message) {
+                await sock.sendMessage(senderId, { text: aiReply.message }, { quoted: message });
+                await new Promise(r => setTimeout(r, 1500));
+            }
+            await sock.sendMessage(senderId, { text: getPaymentMessage(orderId) });
+            console.log(`🛒 New Order Created: #${orderId} for ${senderName}`);
+        } else {
+            await sock.sendMessage(senderId, { text: aiReply.message }, { quoted: message });
+        }
+
+    } catch (err) {
+        console.error('Handle message error:', err.message);
+    }
+}
+
+// ─────────────────────────────────────────
+// WHATSAPP BOT
+// ─────────────────────────────────────────
+async function startBot() {
+    try {
+        try {
+            fs.rmSync('/tmp/auth_info', { recursive: true, force: true });
+        } catch (e) {}
+
+        const { version, isLatest } = await fetchLatestBaileysVersion();
+        console.log(`📱 WA Version: ${version.join('.')} — Latest: ${isLatest}`);
+
+        const { state, saveCreds } = await useMultiFileAuthState('/tmp/auth_info');
+
+        const sock = makeWASocket({
+            version,
+            auth: state,
+            logger: pino({ level: 'silent' }),
+            browser: Browsers.ubuntu('Chrome'),
+            connectTimeoutMs: 60000,
+            defaultQueryTimeoutMs: 60000,
+            keepAliveIntervalMs: 30000,
+            emitOwnEvents: false,
+            markOnlineOnConnect: false,
+            generateHighQualityLinkPreview: false,
+            qrTimeout: 60000,
+            retryRequestDelayMs: 2000,
+            maxMsgRetryCount: 5,
+            fireInitQueries: true,
+            syncFullHistory: false
+        });
+
+        sockGlobal = sock;
+        sock.ev.on('creds.update', saveCreds);
+
+        sock.ev.on('connection.update', async (update) => {
+            const { connection, lastDisconnect, qr } = update;
+
+            if (qr) {
+                currentQR = qr;
+                botStatus = 'qr_ready';
+                console.log('✅ QR Ready! /qr pe jao!');
+            }
+
+            if (connection === 'close') {
+                currentQR = null;
+                const code = lastDisconnect?.error?.output?.statusCode;
+                console.log('❌ Disconnected, code:', code);
+                if (code === DisconnectReason.loggedOut) {
+                    botStatus = 'logged_out';
+                    try { fs.rmSync('/tmp/auth_info', { recursive: true, force: true }); } catch (e) {}
+                    setTimeout(startBot, 5000);
+                } else {
+                    botStatus = 'reconnecting';
+                    setTimeout(startBot, code === 405 ? 15000 : 10000);
+                }
+            }
+
+            if (connection === 'open') {
+                currentQR = null;
+                botStatus = 'connected';
+                console.log('✅ WhatsApp Connected!');
+                console.log('🏪 Mega Agency Bot LIVE!');
+            }
+        });
+
+        sock.ev.on('messages.upsert', async ({ messages, type }) => {
+            if (type !== 'notify') return;
+            for (const message of messages) {
+                await handleMessage(sock, message);
+            }
+        });
+
+    } catch (err) {
+        console.error('Bot start error:', err.message);
+        setTimeout(startBot, 15000);
+    }
+}
+
+console.log('🚀 Mega Agency AI Sales Bot start ho raha hai...');
+startBot();
